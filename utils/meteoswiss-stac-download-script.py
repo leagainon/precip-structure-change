@@ -4,7 +4,7 @@ import requests
 from pystac_client import Client
 
 output_dir = Path("/home/lea/Documents/Data/meteoswiss-weather-stations")
-collection = "ch.meteoschweiz.ogd-smn-precip"
+collection = "ch.meteoschweiz.ogd-smn"  # add -precip to download also the additional stations that have only gage measurements.
 
 client = Client.open("https://data.geo.admin.ch/api/stac/v1")
 collection = client.get_collection(collection)
