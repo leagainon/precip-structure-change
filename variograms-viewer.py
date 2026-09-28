@@ -1,4 +1,5 @@
 from itertools import combinations
+from pathlib import Path
 
 import contextily as ctx
 import geopandas as gpd
@@ -102,6 +103,10 @@ gdf.plot(
 ctx.add_basemap(ax=ax, source=ctx.providers.Esri.WorldGrayCanvas)  # pyright: ignore[]
 
 ax.set_axis_off()
+
+out = Path("output/tests_event2017-02-05/fig_stations.png")
+out.parent.mkdir(parents=True, exist_ok=True)
+plt.savefig(out, dpi=500)
 plt.show()
 
 # =============================
@@ -176,22 +181,25 @@ def compute_2d_variogram(gdf_ts, value_col="rre150h0", n_bins=4, max_lag=None):
     return gamma, counts, bin_edges
 
 
-def plot_2d_variogram(gamma, counts, bin_edges, title="2D Variogram", min_pairs=2):
+def plot_2d_variogram(
+    gamma, counts, bin_edges, title="2D Variogram", min_pairs=2, fs=16
+):
+    plt.rcParams.update({"font.size": 16})
+
     gamma_masked = np.where(counts >= min_pairs, gamma, np.nan)
 
-    # Use edges directly with shading="flat" — pcolormesh then expects
-    # coordinate arrays of length n+1 for an (n,n) data array
-    edges_km = bin_edges / 1000  # m → km, length = 2*n_bins+2 ✓
+    # Use edges directly with shading="flat" so that pcolormesh expects coordinate arrays of length n+1 for an (n,n) data array
+    edges_km = bin_edges / 1000  # m to km, length = 2*n_bins+1
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
 
     im0 = axes[0].pcolormesh(
         edges_km, edges_km, gamma_masked.T, cmap="RdYlGn_r", shading="flat"
     )
-    plt.colorbar(im0, ax=axes[0], label="Semivariance (mm²)")
+    plt.colorbar(im0, ax=axes[0], label=r"Semivariance (mm$^2$)")
     axes[0].set_xlabel("Lag Easting (km)")
     axes[0].set_ylabel("Lag Northing (km)")
-    axes[0].set_title(title)
+    axes[0].set_title(title, fontsize=fs)
     axes[0].axhline(0, color="k", lw=0.5, ls="--")
     axes[0].axvline(0, color="k", lw=0.5, ls="--")
     axes[0].set_aspect("equal")
@@ -200,12 +208,12 @@ def plot_2d_variogram(gamma, counts, bin_edges, title="2D Variogram", min_pairs=
     plt.colorbar(im1, ax=axes[1], label="Pair count")
     axes[1].set_xlabel("Lag Easting (km)")
     axes[1].set_ylabel("Lag Northing (km)")
-    axes[1].set_title(f"{title} — pair counts")
+    axes[1].set_title("pair counts")
     axes[1].axhline(0, color="k", lw=0.5, ls="--")
     axes[1].axvline(0, color="k", lw=0.5, ls="--")
     axes[1].set_aspect("equal")
 
-    plt.suptitle(title, fontsize=12)
+    plt.suptitle(title, fontsize=16)
     plt.tight_layout()
     return fig
 
@@ -233,5 +241,9 @@ for ts in timestamps:
         gdf_ts, value_col="rre150h0", n_bins=4
     )
     fig = plot_2d_variogram(gamma, counts, bin_edges, title=str(ts), min_pairs=2)
+
+    out = Path("output/tests_event2017-02-05") / f"vario_{ts.strftime('%H')}.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out, dpi=500)
     plt.show()
 
