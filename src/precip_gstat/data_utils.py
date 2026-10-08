@@ -12,13 +12,13 @@ def load_station_data(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     A data loader for meteoswiss stations data and metadata
-    ---
     Inputs:
+    ---
     - data_folder: string, path to the data data folder
     - lat_range : list of two floats, the range of latitude values in the interval -90° to 90°. Default is None (no filtering)
     - lon_range : list of two floats, the range of longitude values in the interval -180° to 90°. Default is None (no filtering)
-    ---
     Outputs:
+    ---
     - df : pandas dataframe containing the stations data properly formatted
     - metadata : pandas dataframe of the stations metadata
     """

@@ -1,14 +1,14 @@
-from itertools import combinations
 from pathlib import Path
 
 import contextily as ctx
 import geopandas as gpd
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 from src.precip_gstat import data_utils
 from src.precip_gstat.constants import FMT
+from src.precip_gstat.variogram import compute_2d_variogram
+from src.precip_gstat.viz import plot_2d_variogram
 
 # ==========================
 # Load the metadata and the data
@@ -19,7 +19,6 @@ df, meta_data = data_utils.load_station_data(data_folder=data_path)
 # ==========================
 # Select an event
 # ==========================
-
 date = pd.to_datetime("05.02.2017 06:00", format=FMT)
 df_event = df[
     (df["reference_timestamp"] >= date)
@@ -29,7 +28,6 @@ df_event = df[
 # =============================
 # Build GeoDataFrame (metric CRS)
 # =============================
-
 gdf = gpd.GeoDataFrame(
     df_event,
     geometry=gpd.points_from_xy(
@@ -59,117 +57,9 @@ out.parent.mkdir(parents=True, exist_ok=True)
 plt.savefig(out, dpi=500)
 plt.show()
 
-# =============================
-# 2D Variogram functions
-# =============================
-
-
-def compute_2d_variogram(gdf_ts, value_col="rre150h0", n_bins=4, max_lag=None):
-    """
-    Compute 2D experimental variogram surface for a single timestep.
-
-    Parameters
-    ----------
-    gdf_ts   : **GeoDataFrame** with a geom in EPSG:3857
-    value_col: str of the precipitation column (mm)
-    n_bins   : int, number of bins per half-axis. The total grid is (2*n_bins+1)^2
-    max_lag  : float, max lag in meters. Default: 1/2 of the max pairwise distance
-
-    Returns
-    -------
-    gamma     : (2*n_bins+1, 2*n_bins+1) array, mean semivariance (mm^2)
-    counts    : same shape, number of pairs per bin
-    bin_edges : lag bin edges in meters
-    """
-    # drop nans
-    gdf_ts = gdf_ts[gdf_ts[value_col].notna()]
-
-    coords = np.array([[geom.x, geom.y] for geom in gdf_ts.geometry])
-    values = gdf_ts[value_col].values
-
-    pairs = list(
-        combinations(range(len(gdf_ts)), 2)
-    )  # all combinations of the indices of the gdf
-    i_idx, j_idx = np.array(pairs).T  # fomatted in two arrays for better handling
-
-    # Forward lags
-    dx_fwd = coords[j_idx, 0] - coords[i_idx, 0]
-    dy_fwd = coords[j_idx, 1] - coords[i_idx, 1]
-    sv = 0.5 * (values[j_idx] - values[i_idx]) ** 2
-
-    # Mirror lags: same semivariance since it is just the same lag but in the opposite direction
-    dx = np.concatenate([dx_fwd, -dx_fwd])
-    dy = np.concatenate([dy_fwd, -dy_fwd])
-    sq_diff = np.concatenate([sv, sv])
-
-    # Define the maxlag if not provided
-    if max_lag is None:
-        max_lag = 0.5 * np.sqrt(dx_fwd**2 + dy_fwd**2).max()
-
-    # Define the edges
-    bin_edges = np.linspace(-max_lag, max_lag, 2 * n_bins + 1)
-    n_cells = 2 * n_bins
-
-    # Compute the semivariances
-    gamma = np.full((n_cells, n_cells), np.nan)
-    counts = np.zeros((n_cells, n_cells), dtype=int)
-    for bi in range(n_cells):
-        for bj in range(n_cells):
-            x0, x1 = bin_edges[bi], bin_edges[bi + 1]  # bin of the dx of the lag vector
-            y0, y1 = bin_edges[bj], bin_edges[bj + 1]  # bin of the dy of the lag vector
-            mask = (
-                (dx >= x0) & (dx < x1) & (dy >= y0) & (dy < y1)
-            )  # only keep the lag vectors that fall in the specified bin
-            if mask.sum() > 0:
-                gamma[bi, bj] = sq_diff[
-                    mask
-                ].mean()  # semivariance in this bin = mean square diff of the correspinding pair values
-                counts[bi, bj] = (
-                    mask.sum()
-                )  # also compute the number of paris in this bin
-
-    return gamma, counts, bin_edges
-
-
-def plot_2d_variogram(
-    gamma, counts, bin_edges, title="2D Variogram", min_pairs=2, fs=16
-):
-    plt.rcParams.update({"font.size": 16})
-
-    gamma_masked = np.where(counts >= min_pairs, gamma, np.nan)
-
-    # Use edges directly with shading="flat" so that pcolormesh expects coordinate arrays of length n+1 for an (n,n) data array
-    edges_km = bin_edges / 1000  # m to km, length = 2*n_bins+1
-
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
-
-    im0 = axes[0].pcolormesh(
-        edges_km, edges_km, gamma_masked.T, cmap="RdYlGn_r", shading="flat"
-    )
-    plt.colorbar(im0, ax=axes[0], label=r"Semivariance (mm$^2$)")
-    axes[0].set_xlabel("Lag Easting (km)")
-    axes[0].set_ylabel("Lag Northing (km)")
-    axes[0].set_title(title, fontsize=fs)
-    axes[0].axhline(0, color="k", lw=0.5, ls="--")
-    axes[0].axvline(0, color="k", lw=0.5, ls="--")
-    axes[0].set_aspect("equal")
-
-    im1 = axes[1].pcolormesh(edges_km, edges_km, counts.T, cmap="Blues", shading="flat")
-    plt.colorbar(im1, ax=axes[1], label="Pair count")
-    axes[1].set_xlabel("Lag Easting (km)")
-    axes[1].set_ylabel("Lag Northing (km)")
-    axes[1].set_title("pair counts")
-    axes[1].axhline(0, color="k", lw=0.5, ls="--")
-    axes[1].axvline(0, color="k", lw=0.5, ls="--")
-    axes[1].set_aspect("equal")
-
-    plt.suptitle(title, fontsize=16)
-    plt.tight_layout()
-    return fig
-
 
 # =============================
-# Compute and plot per timestep
+# Compute vario and plot per timestep
 # =============================
 
 timestamps = sorted(gdf["reference_timestamp"].unique())
@@ -178,7 +68,7 @@ for ts in timestamps:
     gdf_ts = gdf[gdf["reference_timestamp"] == ts].copy()
 
     # Skip timesteps where any station records zero — avoids zero-inflation bias
-    # (Deutsch & Journel 1998). Remove once you move to indicator variograms.
+    # (Deutsch & Journel 1998). Remove once we do indicator variograms.
     if (gdf_ts["rre150h0"] == 0).any():
         print(f"Skipping {ts}: zero precipitation at ≥1 station")
         continue
