@@ -6,74 +6,24 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pyarrow.dataset as ds
 
-# ============================
-# Define a lat/lon window
-# ============================
+from src.precip_gstat import data_utils
+from src.precip_gstat.constants import FMT
 
-meta_data_precip = pd.read_csv(
-    "/home/lea/Documents/Data/meteoswiss-weather-stations/ogd-smn-precip_meta_stations.csv",
-    sep=";",
-    encoding="windows-1252",
-)
-meta_data = pd.read_csv(
-    "/home/lea/Documents/Data/meteoswiss-weather-stations/ogd-smn_meta_stations.csv",
-    sep=";",
-    encoding="windows-1252",
-)
-meta_data = pd.concat([meta_data_precip, meta_data]).reset_index(drop=True)
-
-mask = (
-    (meta_data.station_coordinates_wgs84_lat >= 46.5)
-    & (meta_data.station_coordinates_wgs84_lat < 47.5)
-    & (meta_data.station_coordinates_wgs84_lon >= 6.0)
-    & (meta_data.station_coordinates_wgs84_lon < 7.9)
-)
-
-stations = meta_data.loc[mask, "station_abbr"].tolist()
-
-# ============================
-# Load the data
-# ============================
-# 1. read the dataset file architecture
-dataset = ds.dataset(
-    "/home/lea/Documents/Data/meteoswiss-weather-stations/partitioned_parquets/",
-    partitioning="hive",
-)  #  hive very important here since we partiotioned the dataset
-
-# 2. load only the data that we want
-df = dataset.to_table(filter=ds.field("station_abbr").isin(stations)).to_pandas()
-
-# 3. add the coordinates of the stations to the dataframe
-df = df.merge(
-    meta_data[
-        [
-            "station_abbr",
-            "station_coordinates_wgs84_lon",
-            "station_coordinates_wgs84_lat",
-        ]
-    ],
-    on="station_abbr",
-    how="left",
-).rename(
-    columns={
-        "station_coordinates_wgs84_lat": "lat",
-        "station_coordinates_wgs84_lon": "lon",
-    }
-)
-# 4. transform the date strings in datetime objects
-fmt = "%d.%m.%Y %H:%M"
-df["reference_timestamp"] = pd.to_datetime(df.reference_timestamp, format=fmt)
+# ==========================
+# Load the metadata and the data
+# ==========================
+data_path = "/home/lea/Documents/Data/meteoswiss-weather-stations/"
+df, meta_data = data_utils.load_station_data(data_folder=data_path)
 
 # ==========================
 # Select an event
 # ==========================
 
-date = pd.to_datetime("05.02.2017 06:00", format=fmt)
+date = pd.to_datetime("05.02.2017 06:00", format=FMT)
 df_event = df[
-    (df.reference_timestamp >= date)
-    & (df.reference_timestamp <= date + pd.Timedelta(hours=16))
+    (df["reference_timestamp"] >= date)
+    & (df["reference_timestamp"] <= date + pd.Timedelta(hours=16))
 ]
 
 # =============================
@@ -246,4 +196,3 @@ for ts in timestamps:
     out.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out, dpi=500)
     plt.show()
-
