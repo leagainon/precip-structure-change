@@ -5,18 +5,12 @@ import pyarrow.dataset as ds
 from .constants import FMT
 
 
-def load_station_data(
-    data_folder: str,
-    lat_range: list[float] | None = None,
-    lon_range: list[float] | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_station_data(configuration) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     A data loader for meteoswiss stations data and metadata
     Inputs:
     ---
-    - data_folder: string, path to the data data folder
-    - lat_range : list of two floats, the range of latitude values in the interval -90° to 90°. Default is None (no filtering)
-    - lon_range : list of two floats, the range of longitude values in the interval -180° to 90°. Default is None (no filtering)
+    - config : a config dict containing the data loading options
     Outputs:
     ---
     - df : pandas dataframe containing the stations data properly formatted
@@ -25,41 +19,53 @@ def load_station_data(
     # ============================
     # Metadata
     # ============================
-    meta_data_precip: pd.DataFrame = pd.read_csv(
-        f"{data_folder}gd-smn-precip_meta_stations.csv",
-        sep=";",
-        encoding="windows-1252",
-    )
-    meta_data: pd.DataFrame = pd.read_csv(
-        f"{data_folder}ogd-smn_meta_stations.csv",
-        sep=";",
-        encoding="windows-1252",
-    )
-    meta_data = pd.concat([meta_data_precip, meta_data]).reset_index(drop=True)
+    config = configuration["DATA_LOADER"]
+    print("data loader config is \n", config)
+
+    meta_data_list: list[pd.DataFrame] = []
+    if config["smn-precip"]:
+        meta_data_list.append(
+            pd.read_csv(
+                f"{config['data_folder']}ogd-smn-precip_meta_stations.csv",
+                sep=";",
+                encoding="windows-1252",
+            )
+        )
+    if config["smn"]:
+        meta_data_list.append(
+            pd.read_csv(
+                f"{config['data_folder']}ogd-smn_meta_stations.csv",
+                sep=";",
+                encoding="windows-1252",
+            )
+        )
+    meta_data = pd.concat(meta_data_list).reset_index(drop=True)
 
     mask = np.ones(len(meta_data), dtype=bool)
 
-    if lat_range is not None:
+    if config["lat_range"] is not None:
         mask = (
             mask
-            & (meta_data.station_coordinates_wgs84_lat >= lat_range[0])
-            & (meta_data.station_coordinates_wgs84_lat < lat_range[1])
+            & (meta_data.station_coordinates_wgs84_lat >= config["lat_range"][0])
+            & (meta_data.station_coordinates_wgs84_lat < config["lat_range"][1])
         )
-    if lon_range is not None:
+    if config["lon_range"] is not None:
         mask = (
             mask
-            & (meta_data.station_coordinates_wgs84_lon >= lon_range[0])
-            & (meta_data.station_coordinates_wgs84_lon < lon_range[1])
+            & (meta_data.station_coordinates_wgs84_lon >= config["lon_range"][0])
+            & (meta_data.station_coordinates_wgs84_lon < config["lon_range"][1])
         )
 
     stations = meta_data.loc[mask, "station_abbr"].tolist()
 
+    if len(config["stations"]) >= 1:
+        stations = config["stations"]
     # ============================
     # Load the data
     # ============================
     # 1. read the dataset file architecture
     dataset = ds.dataset(
-        f"{data_folder}partitioned_parquets/",
+        f"{config['data_folder']}partitioned_parquets/",
         partitioning="hive",
     )  #  hive very important here since we partiontioned the dataset
 

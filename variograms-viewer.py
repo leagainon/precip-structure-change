@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from src.precip_gstat import data_utils
+from src.precip_gstat.config_reader import read_config
 from src.precip_gstat.constants import FMT
 from src.precip_gstat.variogram import compute_2d_variogram
 from src.precip_gstat.viz import plot_2d_variogram
@@ -13,8 +14,10 @@ from src.precip_gstat.viz import plot_2d_variogram
 # ==========================
 # Load the metadata and the data
 # ==========================
-data_path = "/home/lea/Documents/Data/meteoswiss-weather-stations/"
-df, meta_data = data_utils.load_station_data(data_folder=data_path)
+config = read_config("config.toml")
+df, meta_data = data_utils.load_station_data(config)
+
+print("loaded the data")
 
 # ==========================
 # Select an event
@@ -38,7 +41,6 @@ gdf = gpd.GeoDataFrame(
 # =============================
 # Visualization of the data
 # =============================
-
 fig, ax = plt.subplots(figsize=(13, 8))
 gdf.plot(
     ax=ax,
@@ -61,7 +63,6 @@ plt.show()
 # =============================
 # Compute vario and plot per timestep
 # =============================
-
 timestamps = sorted(gdf["reference_timestamp"].unique())
 
 for ts in timestamps:

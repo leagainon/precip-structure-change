@@ -1,0 +1,13 @@
+[DATA_LOADER]
+# Where is the data ?
+data_folder = "/home/lea/Documents/Data/meteoswiss-weather-stations/"
+# Type of stations to consider 
+smn = true
+"smn-precip" = true
+# List of station names or lat/lon window (list of station prevails if both are specified)
+stations = []
+lat_range = [46.5,47.5]
+lon_range = [6.0,7.9]
+# how many hours for the temporal pooling 
+t_pooling = 3
+
