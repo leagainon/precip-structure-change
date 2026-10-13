@@ -90,4 +90,6 @@ def load_station_data(configuration) -> tuple[pd.DataFrame, pd.DataFrame]:
     )
     # 4. transform the date strings in datetime objects
     df["reference_timestamp"] = pd.to_datetime(df.reference_timestamp, format=FMT)
+    df.rename(columns={"reference_timestamp": "t"}, inplace=True)
+
     return df, meta_data

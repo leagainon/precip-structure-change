@@ -1,6 +1,11 @@
 from itertools import combinations
 
+import geopandas as gpd
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+
+from precip_gstat.viz import plot_2d_variogram
 
 
 # =============================
@@ -71,3 +76,48 @@ def compute_2d_variogram(gdf_ts, value_col="rre150h0", n_bins=4, max_lag=None):
                 )  # also compute the number of paris in this bin
 
     return gamma, counts, bin_edges
+
+
+def iter_2d_vario(config: dict, gdf: gpd.GeoDataFrame):
+    """This functions allows to iterate over the timestamps 't' of the provided geodf (pd datetime format),
+    pool the data across hours (congif setting) and compute the corresponding 2d varios.
+    Inputs :
+    ---
+    Outputs:
+    ---
+    """
+    ts = sorted(gdf["t"].unique())
+    pooling = config["VARIOGRAPHY"]["pooling"]
+
+    # pooling but keeping a "moving window" style for now. Maybe switch to non overlapping pooled vario comp ?
+    for t in ts:
+        gdf_ts = gdf[
+            gdf["t"].between(t, t + pd.Timedelta(hours=pooling), inclusive="left")
+        ].copy()
+
+        # Skip timesteps where any station records zero — avoids zero-inflation bias
+        # (Deutsch & Journel 1998). Remove once we do indicator variograms.
+        if (gdf_ts["rre150h0"] == 0).any():
+            print(f"Skipping {t}: zero precipitation at ≥1 station")
+            continue
+
+        if len(gdf_ts) < 5:
+            print(f"Skipping {t}: too few stations ({len(gdf_ts)})")
+            continue
+
+        gamma, counts, bin_edges = compute_2d_variogram(
+            gdf_ts, value_col="rre150h0", n_bins=config["VARIOGRAPHY"]["nbins"]
+        )
+
+        if config["OUTPUT"]["vario_figs"]:
+            _ = plot_2d_variogram(
+                gamma=gamma,
+                counts=counts,
+                bin_edges=bin_edges,
+                ts=t,
+                config=config,
+                title=str(t),
+                min_pairs=2,
+            )
+            if config["OUTPUT"]["show_figs"]:
+                plt.show()

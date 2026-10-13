@@ -1,9 +1,11 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
 
 def plot_2d_variogram(
-    gamma, counts, bin_edges, title="2D Variogram", min_pairs=2, fs=16
+    gamma, counts, bin_edges, config, ts, title="2D Variogram", min_pairs=2, fs=16
 ):
     plt.rcParams.update({"font.size": 16})
 
@@ -36,4 +38,13 @@ def plot_2d_variogram(
 
     plt.suptitle(title, fontsize=16)
     plt.tight_layout()
+
+    # saving the fig if necessary
+    if config["OUTPUT"]["save_figs"]:
+        out = (
+            Path(config["OUTPUT"]["output_fp"])
+            / f"vario_pooling{config['VARIOGRAPHY']['pooling']}_{ts.strftime('%H')}.png"
+        )
+        out.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(out, dpi=500)
     return fig

@@ -1,5 +1,5 @@
 [DATA_LOADER]
-# Where is the data ?
+# Where is the meteoswiss stations data ?
 data_folder = "/home/lea/Documents/Data/meteoswiss-weather-stations/"
 # Type of stations to consider 
 smn = true
@@ -11,5 +11,12 @@ lon_range = [6.0,7.9]
 
 [VARIOGRAPHY]
 # how many hours will be pooled together for the variograms  
-pooling = 2 #[hours]
+pooling = 1 #[hours]
 nbins = 4
+
+[OUTPUT]
+output_fp = "output/tests_event2017-02-05"
+vario_figs = true
+
+save_figs = true
+show_figs=  false
