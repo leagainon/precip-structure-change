@@ -17,8 +17,6 @@ from src.precip_gstat.viz import plot_2d_variogram
 config = read_config("config.toml")
 df, meta_data = data_utils.load_station_data(config)
 
-print("loaded the data")
-
 # ==========================
 # Select an event
 # ==========================
@@ -50,23 +48,28 @@ gdf.plot(
     legend=True,
     legend_kwds={"label": "Mean hourly precipitation (mm)"},
 )
-ctx.add_basemap(ax=ax, source=ctx.providers.Esri.WorldGrayCanvas)  # pyright: ignore[]
+# ctx.add_basemap(ax=ax, source=ctx.providers.Esri.WorldGrayCanvas)  # pyright: ignore[]
 
 ax.set_axis_off()
 
 out = Path("output/tests_event2017-02-05/fig_stations.png")
 out.parent.mkdir(parents=True, exist_ok=True)
 plt.savefig(out, dpi=500)
-plt.show()
+# plt.show()
 
 
 # =============================
 # Compute vario and plot per timestep
 # =============================
 timestamps = sorted(gdf["reference_timestamp"].unique())
+# pool the timestamps to have more points in the variograms
+pooling = config["VARIOGRAPHY"]["pooling"]
 
+# pooling but keeping a "moving window" style for now. Maybe switch to non overlapping pooled vario comp ?
 for ts in timestamps:
-    gdf_ts = gdf[gdf["reference_timestamp"] == ts].copy()
+    gdf_ts = gdf[
+        gdf["reference_timestamp"].between(ts, ts + pd.Timedelta(hours=pooling))
+    ].copy()
 
     # Skip timesteps where any station records zero — avoids zero-inflation bias
     # (Deutsch & Journel 1998). Remove once we do indicator variograms.
@@ -79,11 +82,14 @@ for ts in timestamps:
         continue
 
     gamma, counts, bin_edges = compute_2d_variogram(
-        gdf_ts, value_col="rre150h0", n_bins=4
+        gdf_ts, value_col="rre150h0", n_bins=config["VARIOGRAPHY"]["nbins"]
     )
     fig = plot_2d_variogram(gamma, counts, bin_edges, title=str(ts), min_pairs=2)
 
-    out = Path("output/tests_event2017-02-05") / f"vario_{ts.strftime('%H')}.png"
+    out = (
+        Path("output/tests_event2017-02-05")
+        / f"vario_pooling{pooling}_{ts.strftime('%H')}.png"
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out, dpi=500)
-    plt.show()
+    # plt.show()

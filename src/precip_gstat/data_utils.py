@@ -20,7 +20,6 @@ def load_station_data(configuration) -> tuple[pd.DataFrame, pd.DataFrame]:
     # Metadata
     # ============================
     config = configuration["DATA_LOADER"]
-    print("data loader config is \n", config)
 
     meta_data_list: list[pd.DataFrame] = []
     if config["smn-precip"]:
